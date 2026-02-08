@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useMemo, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useMemo, ReactNode, useEffect } from 'react';
 
 // Define the shape of a single cart item
 export interface CartItem {
@@ -36,6 +36,18 @@ interface CartProviderProps {
 // Create the provider component
 export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+
+  useEffect(() => {
+    const storedCart = localStorage.getItem('cart');
+    if (storedCart) {
+      setCartItems(JSON.parse(storedCart));
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('cart', JSON.stringify(cartItems));
+  }, [cartItems]);
+
 
   const addItem = (item: Omit<CartItem, 'quantity'>, quantity: number) => {
     setCartItems(prevItems => {

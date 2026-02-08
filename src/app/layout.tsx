@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase';
 import { LanguageProvider } from '@/hooks/use-language';
 import { ThemeProvider } from '@/components/app/theme-provider';
+import { CartProvider } from '@/hooks/use-cart';
 
 export const metadata: Metadata = {
   title: 'CropChain',
@@ -29,14 +30,16 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         <FirebaseClientProvider>
           <LanguageProvider>
-            <ThemeProvider
-              attribute="class"
-              defaultTheme="system"
-              enableSystem
-              disableTransitionOnChange
-            >
-              {children}
-            </ThemeProvider>
+            <CartProvider>
+              <ThemeProvider
+                attribute="class"
+                defaultTheme="system"
+                enableSystem
+                disableTransitionOnChange
+              >
+                {children}
+              </ThemeProvider>
+            </CartProvider>
           </LanguageProvider>
         </FirebaseClientProvider>
         <Toaster />
