@@ -122,9 +122,10 @@ export function Header({ userProfile }: { userProfile?: UserProfile | null }) {
       <div className="flex items-center gap-2 md:gap-4">
         <div className="hidden items-center gap-2 md:flex md:gap-4">
           <LanguageSwitcher />
-          {userProfile && <NotificationBell />}
           <UserNav userProfile={userProfile} />
         </div>
+
+        {userProfile && <NotificationBell />}
         <CartSheet />
         
         {/* Mobile Menu */}
@@ -162,7 +163,6 @@ export function Header({ userProfile }: { userProfile?: UserProfile | null }) {
             <div className="mt-auto border-t pt-4">
               <div className="flex items-center justify-center gap-4">
                   <LanguageSwitcher />
-                  {userProfile && <NotificationBell />}
                   <UserNav userProfile={userProfile} />
               </div>
             </div>
