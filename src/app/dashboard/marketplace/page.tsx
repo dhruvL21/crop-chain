@@ -23,7 +23,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogClose,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,26 +32,44 @@ import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useLanguage } from '@/hooks/use-language';
 import { getCropDisplayName } from '@/lib/get-crop-display-name';
 
-
 const PurchaseDialog = ({ crop, isWholesale, onOpenChange, open }: { crop: any, isWholesale: boolean, open: boolean, onOpenChange: (open: boolean) => void }) => {
     const { toast } = useToast();
     const { addItem } = useCart();
-    const [quantity, setQuantity] = useState(1);
-    const [offerPrice, setOfferPrice] = useState(isWholesale ? crop.wholesalePrice : 0);
+    const [quantityInput, setQuantityInput] = useState('1');
+    const [offerPriceInput, setOfferPriceInput] = useState<string>('');
     const firestore = useFirestore();
     const { user: buyer } = useUser();
     const { t } = useLanguage();
     
     const cropDisplayName = getCropDisplayName(crop.cropName, t);
 
+    useEffect(() => {
+        if (open) {
+            setQuantityInput('1');
+            if (isWholesale) {
+                setOfferPriceInput(crop.wholesalePrice.toFixed(2));
+            } else {
+                setOfferPriceInput('');
+            }
+        }
+    }, [open, crop.wholesalePrice, isWholesale]);
+
     const handleAction = () => {
+        const quantity = parseInt(quantityInput, 10);
+        if (isNaN(quantity) || quantity <= 0) {
+            toast({ title: t('marketplace.invalidQuantity'), variant: "destructive" });
+            return;
+        }
+
         if (isWholesale) {
+            const offerPrice = parseFloat(offerPriceInput);
+            if (isNaN(offerPrice) || offerPrice <= 0) {
+                toast({ title: t('marketplace.invalidOfferPrice'), variant: "destructive" });
+                return;
+            }
+
             if (!firestore || !buyer) {
-                toast({
-                    title: t('marketplace.authError'),
-                    description: t('marketplace.authErrorDescription'),
-                    variant: "destructive",
-                });
+                toast({ title: t('marketplace.authError'), description: t('marketplace.authErrorDescription'), variant: "destructive" });
                 return;
             }
 
@@ -69,50 +86,36 @@ const PurchaseDialog = ({ crop, isWholesale, onOpenChange, open }: { crop: any, 
                 createdAt: serverTimestamp(),
             });
 
-            // Also create a notification for the farmer
             const farmerNotificationRef = collection(firestore, 'users', crop.userId, 'notifications');
             addDocumentNonBlocking(farmerNotificationRef, {
                 userId: crop.userId,
                 messageKey: 'notifications.newOfferReceived',
-                messagePayload: {
-                    buyerName: buyer.displayName || 'anonymous_buyer',
-                    cropName: crop.cropName,
-                },
+                messagePayload: { buyerName: buyer.displayName || 'anonymous_buyer', cropName: crop.cropName },
                 link: '/dashboard',
                 read: false,
                 createdAt: serverTimestamp(),
             });
 
-            toast({
-                title: t('marketplace.offerSubmitted'),
-                description: t('marketplace.offerSubmittedDescription', { quantity: quantity, cropName: cropDisplayName, offerPrice: offerPrice.toFixed(2), unit: crop.unit }),
-            });
+            toast({ title: t('marketplace.offerSubmitted'), description: t('marketplace.offerSubmittedDescription', { quantity: quantity, cropName: cropDisplayName, offerPrice: offerPrice.toFixed(2), unit: crop.unit }) });
         } else {
             addItem({ ...crop, name: crop.cropName, price: crop.retailPrice, id: crop.id, userId: crop.userId, isSample: false }, quantity);
-            toast({
-                title: t('marketplace.addedToCart'),
-                description: t('marketplace.addedToCartDescription', { quantity: quantity, cropName: cropDisplayName }),
-            });
+            toast({ title: t('marketplace.addedToCart'), description: t('marketplace.addedToCartDescription', { quantity: quantity, cropName: cropDisplayName }) });
         }
         onOpenChange(false);
     };
 
     const price = isWholesale ? crop.wholesalePrice : crop.retailPrice;
     const maxQuantity = isWholesale ? crop.wholesaleQuantity : crop.retailQuantity;
-    const total = isWholesale ? quantity * offerPrice : quantity * price;
+    
+    const currentQuantity = parseInt(quantityInput, 10) || 0;
+    const currentOfferPrice = parseFloat(offerPriceInput) || 0;
+    const total = isWholesale ? currentQuantity * currentOfferPrice : currentQuantity * price;
 
-    useEffect(() => {
-        if (open) {
-            setQuantity(1);
-            if (isWholesale) {
-                setOfferPrice(crop.wholesalePrice);
-            }
-        }
-    }, [open, crop.wholesalePrice, isWholesale]);
+    const isSubmitDisabled = currentQuantity <= 0 || (isWholesale && currentOfferPrice <= 0);
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
                     <DialogTitle>{isWholesale ? t('marketplace.makeOffer') : t('marketplace.addToCart')}</DialogTitle>
                     <DialogDescription>
@@ -132,10 +135,11 @@ const PurchaseDialog = ({ crop, isWholesale, onOpenChange, open }: { crop: any, 
                         <Input
                             id="quantity"
                             type="number"
-                            value={quantity}
-                            onChange={(e) => setQuantity(Math.min(maxQuantity, Math.max(1, Number(e.target.value))))}
+                            value={quantityInput}
+                            onChange={(e) => setQuantityInput(e.target.value)}
+                            placeholder="E.g., 100"
+                            min="1"
                             max={maxQuantity}
-                            min={1}
                         />
                     </div>
                     {isWholesale && (
@@ -146,10 +150,11 @@ const PurchaseDialog = ({ crop, isWholesale, onOpenChange, open }: { crop: any, 
                             <Input
                                 id="offerPrice"
                                 type="number"
-                                value={offerPrice}
-                                onChange={(e) => setOfferPrice(Number(e.target.value))}
+                                value={offerPriceInput}
+                                onChange={(e) => setOfferPriceInput(e.target.value)}
+                                placeholder={t('marketplace.offerPricePlaceholder', { price: price.toFixed(2) })}
                                 step="0.01"
-                                min="0"
+                                min="0.01"
                             />
                         </div>
                     )}
@@ -160,17 +165,14 @@ const PurchaseDialog = ({ crop, isWholesale, onOpenChange, open }: { crop: any, 
                         <p className="text-lg">{t('common.total', { total: total.toFixed(2) })}</p>
                     </div>
                 </div>
-                <DialogFooter>
-                    <DialogClose asChild>
-                        <Button variant="outline">{t('common.cancel')}</Button>
-                    </DialogClose>
-                    <Button onClick={handleAction}>{isWholesale ? t('marketplace.submitOffer') : t('marketplace.addToCart')}</Button>
+                <DialogFooter className="grid grid-cols-2 gap-2 sm:gap-0 sm:flex sm:flex-row sm:justify-end">
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>{t('common.cancel')}</Button>
+                    <Button onClick={handleAction} disabled={isSubmitDisabled}>{isWholesale ? t('marketplace.submitOffer') : t('marketplace.addToCart')}</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
     );
 };
-
 
 const CropCard = ({ crop, isWholesale }: { crop: any, isWholesale: boolean }) => {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
