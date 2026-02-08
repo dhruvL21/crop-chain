@@ -36,17 +36,30 @@ interface CartProviderProps {
 // Create the provider component
 export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    const storedCart = localStorage.getItem('cart');
-    if (storedCart) {
-      setCartItems(JSON.parse(storedCart));
+    try {
+      const storedCart = localStorage.getItem('cart');
+      if (storedCart) {
+        setCartItems(JSON.parse(storedCart));
+      }
+    } catch (error) {
+        console.error("Failed to load cart from localStorage", error);
+    } finally {
+        setIsLoaded(true);
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('cart', JSON.stringify(cartItems));
-  }, [cartItems]);
+    if (isLoaded) {
+        try {
+            localStorage.setItem('cart', JSON.stringify(cartItems));
+        } catch(error) {
+            console.error("Failed to save cart to localStorage", error);
+        }
+    }
+  }, [cartItems, isLoaded]);
 
 
   const addItem = (item: Omit<CartItem, 'quantity'>, quantity: number) => {
